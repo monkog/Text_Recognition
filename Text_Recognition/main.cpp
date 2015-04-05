@@ -25,27 +25,73 @@ void mlp(Mat image, vector<vector<int>> allFeatures, int width, int cols, int ro
 	mlp.train(image, output, Mat());
 }
 
-void bayes(Mat image, vector<vector<int>> allFeatures, int numOfSamples, int cols, int rows)
+void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allTestFeatures, int numOfSamples, int cols, int rows, int size
+	, Mat features, Mat labels, Mat testSet, Mat results)
 {
-	CvNormalBayesClassifier classifier;
-	Mat features = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32S);
-	Mat labels = Mat(numOfSamples * rows, 1, CV_32S);
-
+	// Create matrix of features (one row is one feature vector)
 	for (int j = 0; j < rows * numOfSamples; j++)
 	{
 		vector<int> feature = allFeatures[j];
+		vector<int> testFeature = allTestFeatures[j];
+
 		for (int i = 0; i < FEATURES_VECTOR_SIZE; i++)
-			features.at<int>(j, i) = feature[i];
+		{
+			features.at<float>(j, i) = feature[i];
+			testSet.at<float>(j, i) = testFeature[i];
+		}
 	}
 
+	// Create matrix of results (each row is the answer for each of the rows in features matrix)
 	for (int i = 0; i < rows; i++)
 		for (int j = 0; j < numOfSamples; j++)
 			labels.at<int>(i * numOfSamples + j, 0) = i;
+}
+
+void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
+{
+	CvNormalBayesClassifier classifier;
 
 	classifier.train(features, labels);
+	classifier.predict(testSet, &results);
 
-	cout << "";
+	int wrongAnswers = 0;
+	for (int i = 0; i < rows; i++)
+		for (int j = 0; j < numOfSamples; j++)
+			if (results.at<int>(i * numOfSamples + j, 0) != i)
+				wrongAnswers++;
+
+	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
+
+	classifier.save("NormalBayesClassifier");
 }
+
+void r_trees(Mat features, Mat labels, Mat testSet, Mat results)
+{
+	CvRTrees  classifier;
+	CvRTParams  params(4, // max_depth,
+		2, // min_sample_count,
+		0.f, // regression_accuracy,
+		false, // use_surrogates,
+		16, // max_categories,
+		0, // priors,
+		false, // calc_var_importance,
+		1, // nactive_vars,
+		5, // max_num_of_trees_in_the_forest,
+		0, // forest_accuracy,
+		CV_TERMCRIT_ITER // termcrit_type
+		);
+
+	classifier.train(features, CV_ROW_SAMPLE, labels, Mat(), Mat(), Mat(), Mat(), params);
+
+	int wrongAnswers = 0;
+	for (int i = 0; i < testSet.rows; i++)
+		if (results.at<int>(i, 0) = ((int)classifier.predict(testSet.row(i))) != i)
+			wrongAnswers++;
+
+	cout << "Wrong answers: " << wrongAnswers << " / " << testSet.rows;
+	classifier.save("RTreesClassifier");
+}
+
 // Calculate the number of white pixels in the matrix
 vector<int> calculateFeatureVector(Mat sample)
 {
@@ -66,32 +112,17 @@ vector<int> calculateFeatureVector(Mat sample)
 	return features;
 }
 
-void parse_training_data(string filename, int model, int width, int cols, int rows, int numOfSamples)
+void createFeaturesAndTestSets(Mat thresholdImage, vector<vector<int>>* allFeatures, vector<vector<int>>* allTestFeatures, int rows, int cols, int numOfSamples, int width)
 {
-	Mat image = imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
-	// Separate white and black regions using the threshold function
-	// TRESHOLDING OPERATIONS:
-	// 0 : Binary
-	// 1 : Binary Inverted
-	// 2 : Threshold Truncated
-	// 3 : Threshold to Zero
-	// 4 : Threshold to Zero Inverted
-
-	Mat thresholdImage;
-	// src_gray: Our input image
-	// dst : output image
-	// threshold_value : Values greater than treshold will turn black
-	// max_BINARY_value : The value used with the Binary thresholding operations(to set the chosen pixels)
-	// threshold_type : One of the 5 thresholding operations.They are listed in the comment section of the function above.
-	threshold(image, thresholdImage, 200, 255, THRESH_BINARY_INV);
-	vector<vector<int>> allFeatures(cols * rows * numOfSamples);
-
 	for (int j = 0; j < rows * numOfSamples; j++)
 	{
 		for (int i = 0; i < cols; i++)
 		{
 			Mat sample = thresholdImage.colRange(i * width, i * width + width).rowRange(j * width, j * width + width);
 
+
+			if (j * (cols / 2) + i == 88 || j * (cols / 2) + i - (width / 2) == 88)
+				cout << "";
 			// Find the contours
 			vector<vector<Point>> contours;
 			findContours(sample, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
@@ -112,9 +143,43 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 			int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
 			copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
 			resize(sample, sample, Size(32, 32));
-			allFeatures[j * cols + i] = calculateFeatureVector(sample);
+
+			if (i < width / 2)
+				(*allFeatures)[j * (cols / 2) + i] = calculateFeatureVector(sample);
+			else
+				(*allTestFeatures)[j * (cols / 2) + i - (width / 2)] = calculateFeatureVector(sample);
 		}
 	}
+}
+
+void parse_training_data(string filename, int model, int width, int cols, int rows, int numOfSamples)
+{
+	Mat image = imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
+	// Separate white and black regions using the threshold function
+	// TRESHOLDING OPERATIONS:
+	// 0 : Binary
+	// 1 : Binary Inverted
+	// 2 : Threshold Truncated
+	// 3 : Threshold to Zero
+	// 4 : Threshold to Zero Inverted
+
+	Mat thresholdImage;
+	// src_gray: Our input image
+	// dst : output image
+	// threshold_value : Values greater than treshold will turn black
+	// max_BINARY_value : The value used with the Binary thresholding operations(to set the chosen pixels)
+	// threshold_type : One of the 5 thresholding operations.They are listed in the comment section of the function above.
+	threshold(image, thresholdImage, 200, 255, THRESH_BINARY_INV);
+	vector<vector<int>> allFeatures(cols * rows * numOfSamples / 2);
+	vector<vector<int>> allTestFeatures(cols * rows * numOfSamples / 2);
+	createFeaturesAndTestSets(thresholdImage, &allFeatures, &allTestFeatures, rows, cols, numOfSamples, width);
+
+	Mat features = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32F);
+	Mat labels = Mat(numOfSamples * rows, 1, CV_32S);
+
+	Mat testSet = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32F);
+	Mat results = Mat(numOfSamples * rows, 1, CV_32S);
+	createTrainingSet(allFeatures, allTestFeatures, numOfSamples, cols, rows, width, features, labels, testSet, results);
 
 	switch (model)
 	{
@@ -122,9 +187,10 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 		mlp(thresholdImage, allFeatures, width, cols, rows);
 		break;
 	case Bayes_Classifier:
-		bayes(thresholdImage, allFeatures, numOfSamples, cols, rows);
+		bayes(features, labels, testSet, results, numOfSamples, rows);
 		break;
 	case R_Trees:
+		r_trees(features, labels, testSet, results);
 		break;
 	case Model::SVM:
 		break;
@@ -135,7 +201,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 
 void choose_clasifier(bool digits, string filename)
 {
-	int model = 2;
+	int model = 3;
 	cout << "Choose statistic model:\n" << "1. MLP\n" << "2. Bayes Classifier\n" << "3. R Trees\n" << "4. SVM\n";
 	//cin >> model;
 
