@@ -25,6 +25,28 @@ void mlp(Mat image, vector<vector<int>> allFeatures, int width, int cols, int ro
 	mlp.train(image, output, Mat());
 }
 
+void bayes(Mat image, vector<vector<int>> allFeatures, int numOfSamples, int cols, int rows)
+{
+	CvNormalBayesClassifier classifier;
+	Mat features = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32S);
+	Mat labels = Mat(numOfSamples * rows, 1, CV_32S);
+
+	for (int j = 0; j < rows * numOfSamples; j++)
+	{
+		vector<int> feature = allFeatures[j];
+		for (int i = 0; i < FEATURES_VECTOR_SIZE; i++)
+			features.at<int>(j, i) = feature[i];
+	}
+
+	for (int i = 0; i < rows; i++)
+		for (int j = 0; j < numOfSamples; j++)
+			labels.at<int>(i * numOfSamples + j, 0) = i;
+
+	classifier.train(features, labels);
+
+	cout << "";
+}
+// Calculate the number of white pixels in the matrix
 vector<int> calculateFeatureVector(Mat sample)
 {
 	vector<int> features(FEATURES_VECTOR_SIZE);
@@ -34,9 +56,11 @@ vector<int> calculateFeatureVector(Mat sample)
 		{
 			int whitePixels = 0;
 			for (int k = 0; k < 8; k++)
+			{
 				for (int l = 0; l < 8; l++)
-					if (sample.at<uchar>(j * 4 + k, i * 4 + l) > 20)
+					if (sample.at<uchar>(j * 8 + k, i * 8 + l) > 20)
 						whitePixels++;
+			}
 			features[j * 4 + i] = whitePixels;
 		}
 	return features;
@@ -76,10 +100,10 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 			vector<vector<Point>> contours_poly(contours.size());
 			vector<Rect> boundingBox(contours.size());
 
-			for (int i = 0; i < contours.size(); i++)
+			for (int k = 0; k < contours.size(); k++)
 			{
-				approxPolyDP(Mat(contours[i]), contours_poly[i], 3, true);
-				boundingBox[i] = boundingRect(Mat(contours_poly[i]));
+				approxPolyDP(Mat(contours[k]), contours_poly[k], 3, true);
+				boundingBox[k] = boundingRect(Mat(contours_poly[k]));
 			}
 
 			// Resize the contours
@@ -88,7 +112,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 			int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
 			copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
 			resize(sample, sample, Size(32, 32));
-			allFeatures[j * rows * numOfSamples + cols] = calculateFeatureVector(sample);
+			allFeatures[j * cols + i] = calculateFeatureVector(sample);
 		}
 	}
 
@@ -98,6 +122,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 		mlp(thresholdImage, allFeatures, width, cols, rows);
 		break;
 	case Bayes_Classifier:
+		bayes(thresholdImage, allFeatures, numOfSamples, cols, rows);
 		break;
 	case R_Trees:
 		break;
@@ -110,7 +135,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 
 void choose_clasifier(bool digits, string filename)
 {
-	int model = 1;
+	int model = 2;
 	cout << "Choose statistic model:\n" << "1. MLP\n" << "2. Bayes Classifier\n" << "3. R Trees\n" << "4. SVM\n";
 	//cin >> model;
 
