@@ -62,17 +62,17 @@ void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples,
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
 
-	classifier.save("NormalBayesClassifier");
+	classifier.save("NormalBayesClassifier.yaml");
 }
 
-void r_trees(Mat features, Mat labels, Mat testSet, Mat results)
+void r_trees(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
 {
 	CvRTrees  classifier;
 	CvRTParams  params(4, // max_depth,
 		2, // min_sample_count,
 		0.f, // regression_accuracy,
 		false, // use_surrogates,
-		16, // max_categories,
+		rows, // max_categories,
 		0, // priors,
 		false, // calc_var_importance,
 		1, // nactive_vars,
@@ -85,11 +85,43 @@ void r_trees(Mat features, Mat labels, Mat testSet, Mat results)
 
 	int wrongAnswers = 0;
 	for (int i = 0; i < testSet.rows; i++)
-		if (results.at<int>(i, 0) = ((int)classifier.predict(testSet.row(i))) != i)
-			wrongAnswers++;
+		results.at<int>(i, 0) = ((int)classifier.predict(testSet.row(i)));
+
+	for (int i = 0; i < rows; i++)
+		for (int j = 0; j < numOfSamples; j++)
+			if (results.at<int>(i * numOfSamples + j, 0) != i)
+				wrongAnswers++;
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << testSet.rows;
-	classifier.save("RTreesClassifier");
+	classifier.save("RTreesClassifier.yaml");
+}
+
+void svm(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
+{
+	CvSVMParams params;
+	params.svm_type = CvSVM::C_SVC;
+	params.kernel_type = CvSVM::POLY; //CvSVM::LINEAR;
+	params.degree = 0.5;
+	params.gamma = 1;
+	params.coef0 = 1;
+	params.C = 1;
+	params.nu = 0.5;
+	params.p = 0;
+	params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, 1000, 0.01);
+
+	CvSVM classifier(features, labels, Mat(), Mat(), params);
+	int wrongAnswers = 0;
+	for (int i = 0; i < testSet.rows; i++)
+		results.at<int>(i, 0) = ((int)classifier.predict(testSet.row(i)));
+
+	for (int i = 0; i < rows; i++)
+		for (int j = 0; j < numOfSamples; j++)
+			if (results.at<int>(i * numOfSamples + j, 0) != i)
+				wrongAnswers++;
+
+	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
+
+	classifier.save("SVMClassifier.yaml");
 }
 
 // Calculate the number of white pixels in the matrix
@@ -190,9 +222,10 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 		bayes(features, labels, testSet, results, numOfSamples, rows);
 		break;
 	case R_Trees:
-		r_trees(features, labels, testSet, results);
+		r_trees(features, labels, testSet, results, numOfSamples, rows);
 		break;
 	case Model::SVM:
+		svm(features, labels, testSet, results, numOfSamples, rows);
 		break;
 	default:
 		break;
@@ -201,7 +234,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 
 void choose_clasifier(bool digits, string filename)
 {
-	int model = 3;
+	int model = 4;
 	cout << "Choose statistic model:\n" << "1. MLP\n" << "2. Bayes Classifier\n" << "3. R Trees\n" << "4. SVM\n";
 	//cin >> model;
 
