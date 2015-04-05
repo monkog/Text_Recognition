@@ -17,14 +17,6 @@ enum Model
 	, SVM = 4
 };
 
-void mlp(Mat image, vector<vector<int>> allFeatures, int width, int cols, int rows)
-{
-	CvANN_MLP mlp;
-	Mat output;
-	mlp.create(image);
-	mlp.train(image, output, Mat());
-}
-
 void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allTestFeatures, int numOfSamples, int cols, int rows, int size
 	, Mat features, Mat labels, Mat testSet, Mat results)
 {
@@ -45,6 +37,39 @@ void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allT
 	for (int i = 0; i < rows; i++)
 		for (int j = 0; j < numOfSamples; j++)
 			labels.at<int>(i * numOfSamples + j, 0) = i;
+}
+
+void mlp(Mat features, Mat testSet, Mat results, int numOfSamples, int rows)
+{
+	Mat layer_sizes(1, 3, CV_32SC1);
+	layer_sizes.at<int>(0) = 2;
+	layer_sizes.at<int>(1) = 5;
+	layer_sizes.at<int>(2) = rows;
+
+	Mat labels = Mat(results.rows, rows, CV_32S);
+
+	for (int i = 0; i < labels.cols; i++)
+		for (int j = 0; j < labels.rows; j++)
+			if (i == j)
+				labels.at<float>(j, i) = 1;
+			else
+				labels.at<float>(j, i) = 0;
+
+	CvANN_MLP classifier(layer_sizes, CvANN_MLP::SIGMOID_SYM, 1, 1);
+	classifier.train(features, labels, Mat());
+
+	for (int i = 0; i < testSet.rows; i++)
+		classifier.predict(testSet.row(i), results.row(i));
+
+	int wrongAnswers = 0;
+	for (int i = 0; i < rows; i++)
+		for (int j = 0; j < numOfSamples; j++)
+			if (results.at<int>(i * numOfSamples + j, 0) != i)
+				wrongAnswers++;
+
+	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
+
+	classifier.save("MLPClassifier.yaml");
 }
 
 void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
@@ -216,7 +241,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 	switch (model)
 	{
 	case MLP:
-		mlp(thresholdImage, allFeatures, width, cols, rows);
+		mlp(features, testSet, results, numOfSamples, rows);
 		break;
 	case Bayes_Classifier:
 		bayes(features, labels, testSet, results, numOfSamples, rows);
