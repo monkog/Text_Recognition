@@ -41,22 +41,31 @@ void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allT
 
 void mlp(Mat features, Mat testSet, Mat results, int numOfSamples, int rows)
 {
-	Mat layer_sizes(1, 3, CV_32SC1);
-	layer_sizes.at<int>(0) = 2;
-	layer_sizes.at<int>(1) = 5;
-	layer_sizes.at<int>(2) = rows;
-
+	// 4 rows and 1 col with the type of 32 bits short.
+	Mat layer_sizes(4, 1, CV_32SC1);
+	layer_sizes.at<int>(0) = rows;   // inputs
+	layer_sizes.at<int>(1) = 30;  // hidden
+	layer_sizes.at<int>(2) = 30;  // hidden
+	layer_sizes.at<int>(3) = rows;   //output
+	
 	Mat labels = Mat(results.rows, rows, CV_32S);
 
-	for (int i = 0; i < labels.cols; i++)
-		for (int j = 0; j < labels.rows; j++)
-			if (i == j)
-				labels.at<float>(j, i) = 1;
-			else
-				labels.at<float>(j, i) = 0;
+	for (int j = 0; j < labels.rows / numOfSamples; j++)
+		for (int i = 0; i < labels.cols; i++)
+			for (int k = 0; k < numOfSamples; k++)
+				if (i == j)
+					labels.at<int>(j * numOfSamples + k, i) = 1;
+				else
+					labels.at<int>(j * numOfSamples + k, i) = 0;
 
 	CvANN_MLP classifier(layer_sizes, CvANN_MLP::SIGMOID_SYM, 1, 1);
-	classifier.train(features, labels, Mat());
+	try{
+		classifier.train(features, labels, Mat());
+	}
+	catch (Exception e)
+	{
+		cout << "";
+	}
 
 	for (int i = 0; i < testSet.rows; i++)
 		classifier.predict(testSet.row(i), results.row(i));
@@ -201,10 +210,10 @@ void createFeaturesAndTestSets(Mat thresholdImage, vector<vector<int>>* allFeatu
 			copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
 			resize(sample, sample, Size(32, 32));
 
-			if (i < width / 2)
+			if (i < cols / 2)
 				(*allFeatures)[j * (cols / 2) + i] = calculateFeatureVector(sample);
 			else
-				(*allTestFeatures)[j * (cols / 2) + i - (width / 2)] = calculateFeatureVector(sample);
+				(*allTestFeatures)[j * (cols / 2) + i - (cols / 2)] = calculateFeatureVector(sample);
 		}
 	}
 }
@@ -259,12 +268,11 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 
 void choose_clasifier(bool digits, string filename)
 {
-	int model = 4;
+	int model;
 	cout << "Choose statistic model:\n" << "1. MLP\n" << "2. Bayes Classifier\n" << "3. R Trees\n" << "4. SVM\n";
-	//cin >> model;
+	cin >> model;
 
-	//int width = 20, cols = 100;
-	int width = 40, cols = 40;
+	int width = digits ? 20 : 40, cols = digits ? 100 : 40;
 
 	parse_training_data(filename, model, width, cols, digits ? 10 : 26, 5);
 }
@@ -278,14 +286,14 @@ void choose_training_file(bool digits)
 	string lettersFile = "..\\letters.png";
 	string digitsFile = "..\\digits.png";
 
-	choose_clasifier(digits, lettersFile);
+	choose_clasifier(digits, digits ? digitsFile : lettersFile);
 }
 
 int main(int argc, char* argv[])
 {
 	int result = 1;
 	cout << "Choose training set:\n" << "1. Letters\n" << "2. Digits\n";
-	//cin >> result;
+	cin >> result;
 
 	bool isDigit = result == 2;
 	choose_training_file(isDigit);
