@@ -7,7 +7,7 @@
 using namespace cv;
 using namespace std;
 
-const int FEATURES_VECTOR_SIZE = 16;
+#define FEATURES_VECTOR_SIZE 16
 
 enum Model
 {
