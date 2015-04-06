@@ -17,26 +17,57 @@ enum Model
 	, SVM = 4
 };
 
-void mlp(char* fileName)
+void mlp(string fileName, vector<vector<Mat>> features)
 {
 	CvANN_MLP classifier;
-	classifier.load(fileName);
-	/*
-		for (int i = 0; i < testSet.rows; i++)
-		classifier.predict(testSet.row(i), results.row(i));*/
+	classifier.load(fileName.c_str());
+
+	vector<vector<int>> results;
+	for (int i = 0; i < features.size(); i++)
+	{
+		vector<int> lineResults;
+		for (int j = 0; j < features[i].size(); j++)
+		{
+			Mat result;
+			classifier.predict(features[i][j], result);
+			float max = 0;
+			int maxIndex = 0;
+			for (int k = 0; k < result.cols; k++)
+				if (result.at<float>(0, k) > max)
+				{
+					max = result.at<float>(0, k);
+					maxIndex = k;
+				}
+			lineResults.push_back(maxIndex);
+		}
+		results.push_back(lineResults);
+	}
 }
 
-void bayes(char* fileName)
+void bayes(string fileName, vector<vector<Mat>> features)
 {
 	CvNormalBayesClassifier classifier;
-	classifier.load(fileName);
-	/*classifier.predict(testSet, &results);*/
+	classifier.load(fileName.c_str());
+
+	Mat result = Mat(1, 1, CV_32S);
+
+	vector<vector<int>> results;
+	for (int i = 0; i < features.size(); i++)
+	{
+		vector<int> lineResults;
+		for (int j = 0; j < features[i].size(); j++)
+		{
+			classifier.predict(features[i][j], &result);
+			lineResults.push_back(result.at<int>(0, 0));
+		}
+		results.push_back(lineResults);
+	}
 }
 
-void r_trees(char* fileName, vector<vector<Mat>> features)
+void r_trees(string fileName, vector<vector<Mat>> features)
 {
 	CvRTrees  classifier;
-	classifier.load(fileName);
+	classifier.load(fileName.c_str());
 
 	vector<vector<int>> results;
 	for (int i = 0; i < features.size(); i++)
@@ -44,16 +75,23 @@ void r_trees(char* fileName, vector<vector<Mat>> features)
 		vector<int> lineResults;
 		for (int j = 0; j < features[i].size(); j++)
 			lineResults.push_back((int)classifier.predict(features[i][j]));
+		results.push_back(lineResults);
 	}
 }
 
-void svm(char* fileName)
+void svm(string fileName, vector<vector<Mat>> features)
 {
 	CvSVM classifier;
-	classifier.load(fileName);
+	classifier.load(fileName.c_str());
 
-	/*for (int i = 0; i < testSet.rows; i++)
-		results.at<int>(i, 0) = ((int)classifier.predict(testSet.row(i)));	*/
+	vector<vector<int>> results;
+	for (int i = 0; i < features.size(); i++)
+	{
+		vector<int> lineResults;
+		for (int j = 0; j < features[i].size(); j++)
+			lineResults.push_back((int)classifier.predict(features[i][j]));
+		results.push_back(lineResults);
+	}
 }
 
 vector<int> find_white_Pixels(Mat thresholdImage, bool isHorizontal)
@@ -85,7 +123,7 @@ vector<Mat> find_lines(vector<int> whitePixels, Mat image)
 	bool found = true;
 	vector<Mat> lines;
 
-	while (found)
+	while (found && index < image.rows - 1)
 	{
 		found = false;
 
@@ -190,7 +228,7 @@ vector<Mat> separate_words(vector<int> whiteSpaces, Mat line)
 // Calculate the number of white pixels in the matrix
 Mat calculateFeatureVector(Mat sample)
 {
-	Mat features = Mat(FEATURES_VECTOR_SIZE, 1, CV_32F);
+	Mat features = Mat(1, FEATURES_VECTOR_SIZE, CV_32FC1);
 
 	for (int j = 0; j < 4; j++)
 		for (int i = 0; i < 4; i++)
@@ -202,7 +240,7 @@ Mat calculateFeatureVector(Mat sample)
 					if (sample.at<uchar>(j * 8 + k, i * 8 + l) > 20)
 						whitePixels++;
 			}
-			features.at<float>(j * 4 + i, 0) = whitePixels;
+			features.at<float>(0, j * 4 + i) = whitePixels;
 		}
 	return features;
 }
@@ -239,13 +277,16 @@ vector<vector<Mat>> find_features(vector<vector<Mat>> words)
 				boundingBox[k] = boundingRect(Mat(contours_poly[k]));
 			}
 
-			// Resize the contours
-			resize(sample.colRange(boundingBox[0].x, boundingBox[0].x + boundingBox[0].width).rowRange(boundingBox[0].y
-				, boundingBox[0].y + boundingBox[0].height), sample, boundingBox[0].size());
-			int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
-			copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
-			resize(sample, sample, Size(32, 32));
+			if (boundingBox.size() > 0)
+			{
+				// Resize the contours
+				resize(sample.colRange(boundingBox[0].x, boundingBox[0].x + boundingBox[0].width).rowRange(boundingBox[0].y
+					, boundingBox[0].y + boundingBox[0].height), sample, boundingBox[0].size());
+				int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
+				copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
+			}
 
+			resize(sample, sample, Size(32, 32));
 			lineFeatures.push_back(calculateFeatureVector(sample));
 		}
 		features.push_back(lineFeatures);
@@ -279,16 +320,19 @@ int main(int argc, char* argv[])
 	switch (model)
 	{
 	case MLP:
-		fileName = "MLPClassifier.yaml";
+		fileName = "..\\MLPClassifier.yaml";
 		break;
 	case Bayes_Classifier:
-		fileName = "NormalBayesClassifier.yaml";
+		fileName = "..\\NormalBayesClassifier.yaml";
+		bayes(fileName, features);
 		break;
 	case R_Trees:
-		fileName = "RTreesClassifier.yaml";
+		fileName = "..\\RTreesClassifier.yaml";
+		r_trees(fileName, features);
 		break;
 	case Model::SVM:
-		fileName = "SVMClassifier.yaml";
+		fileName = "..\\SVMClassifier.yaml";
+		svm(fileName, features);
 		break;
 	default:
 		break;

@@ -78,7 +78,7 @@ void mlp(Mat features, Mat testSet, Mat results, int numOfSamples, int rows)
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
 
-	classifier.save("MLPClassifier.yaml");
+	classifier.save("..\\MLPClassifier.yaml");
 }
 
 void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
@@ -96,7 +96,7 @@ void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples,
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
 
-	classifier.save("NormalBayesClassifier.yaml");
+	classifier.save("..\\NormalBayesClassifier.yaml");
 }
 
 void r_trees(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
@@ -127,7 +127,7 @@ void r_trees(Mat features, Mat labels, Mat testSet, Mat results, int numOfSample
 				wrongAnswers++;
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << testSet.rows;
-	classifier.save("RTreesClassifier.yaml");
+	classifier.save("..\\RTreesClassifier.yaml");
 }
 
 void svm(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
@@ -155,7 +155,7 @@ void svm(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, i
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
 
-	classifier.save("SVMClassifier.yaml");
+	classifier.save("..\\SVMClassifier.yaml");
 }
 
 // Calculate the number of white pixels in the matrix
@@ -203,11 +203,15 @@ void createFeaturesAndTestSets(Mat thresholdImage, vector<vector<int>>* allFeatu
 				boundingBox[k] = boundingRect(Mat(contours_poly[k]));
 			}
 
-			// Resize the contours
-			resize(sample.colRange(boundingBox[0].x, boundingBox[0].x + boundingBox[0].width).rowRange(boundingBox[0].y
-				, boundingBox[0].y + boundingBox[0].height), sample, boundingBox[0].size());
-			int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
-			copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
+			if (boundingBox.size() > 0)
+			{
+				// Resize the contours
+				resize(sample.colRange(boundingBox[0].x, boundingBox[0].x + boundingBox[0].width).rowRange(boundingBox[0].y
+					, boundingBox[0].y + boundingBox[0].height), sample, boundingBox[0].size());
+				int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
+				copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
+			}
+
 			resize(sample, sample, Size(32, 32));
 
 			if (i < cols / 2)
@@ -240,10 +244,10 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 	vector<vector<int>> allTestFeatures(cols * rows * numOfSamples / 2);
 	createFeaturesAndTestSets(thresholdImage, &allFeatures, &allTestFeatures, rows, cols, numOfSamples, width);
 
-	Mat features = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32F);
+	Mat features = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32FC1);
 	Mat labels = Mat(numOfSamples * rows, 1, CV_32S);
 
-	Mat testSet = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32F);
+	Mat testSet = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32FC1);
 	Mat results = Mat(numOfSamples * rows, 1, CV_32S);
 	createTrainingSet(allFeatures, allTestFeatures, numOfSamples, cols, rows, width, features, labels, testSet, results);
 
