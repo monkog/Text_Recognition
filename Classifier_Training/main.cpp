@@ -17,8 +17,8 @@ enum Model
 	, SVM = 4
 };
 
-void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allTestFeatures, int numOfSamples, int cols, int rows, int size
-	, Mat features, Mat labels, Mat testSet, Mat results)
+void createTrainingSet(vector<vector<int>> allFeatures, vector<vector<int>> allTestFeatures, int numOfSamples, int rows
+	, Mat features, Mat labels, Mat testSet)
 {
 	// Create matrix of features (one row is one feature vector)
 	for (int j = 0; j < rows * numOfSamples; j++)
@@ -43,29 +43,23 @@ void mlp(Mat features, Mat testSet, Mat results, int numOfSamples, int rows)
 {
 	// 4 rows and 1 col with the type of 32 bits short.
 	Mat layer_sizes(4, 1, CV_32SC1);
-	layer_sizes.at<int>(0) = rows;   // inputs
+	layer_sizes.at<int>(0) = 16;   // inputs
 	layer_sizes.at<int>(1) = 30;  // hidden
 	layer_sizes.at<int>(2) = 30;  // hidden
 	layer_sizes.at<int>(3) = rows;   //output
-	
-	Mat labels = Mat(results.rows, rows, CV_32S);
+
+	Mat labels = Mat(results.rows, rows, CV_32FC1);
 
 	for (int j = 0; j < labels.rows / numOfSamples; j++)
 		for (int i = 0; i < labels.cols; i++)
 			for (int k = 0; k < numOfSamples; k++)
 				if (i == j)
-					labels.at<int>(j * numOfSamples + k, i) = 1;
+					labels.at<float>(j * numOfSamples + k, i) = 1;
 				else
-					labels.at<int>(j * numOfSamples + k, i) = 0;
+					labels.at<float>(j * numOfSamples + k, i) = 0;
 
 	CvANN_MLP classifier(layer_sizes, CvANN_MLP::SIGMOID_SYM, 1, 1);
-	try{
-		classifier.train(features, labels, Mat());
-	}
-	catch (Exception e)
-	{
-		cout << "";
-	}
+	classifier.train(features, labels, Mat());
 
 	for (int i = 0; i < testSet.rows; i++)
 		classifier.predict(testSet.row(i), results.row(i));
@@ -91,7 +85,7 @@ void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples,
 	int wrongAnswers = 0;
 	for (int i = 0; i < rows; i++)
 		for (int j = 0; j < numOfSamples; j++)
-			if (results.at<int>(i * numOfSamples + j, 0) != i)
+			if (results.at<float>(i * numOfSamples + j, 0) != i)
 				wrongAnswers++;
 
 	cout << "Wrong answers: " << wrongAnswers << " / " << numOfSamples * rows;
@@ -249,7 +243,7 @@ void parse_training_data(string filename, int model, int width, int cols, int ro
 
 	Mat testSet = Mat(numOfSamples * rows, FEATURES_VECTOR_SIZE, CV_32FC1);
 	Mat results = Mat(numOfSamples * rows, 1, CV_32S);
-	createTrainingSet(allFeatures, allTestFeatures, numOfSamples, cols, rows, width, features, labels, testSet, results);
+	createTrainingSet(allFeatures, allTestFeatures, numOfSamples, rows, features, labels, testSet);
 
 	switch (model)
 	{
