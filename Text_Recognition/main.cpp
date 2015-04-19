@@ -11,6 +11,7 @@ using namespace std;
 
 vector<vector<Rect>> m_words;
 vector<tuple<int, int>> m_lines;
+vector<vector<vector<Rect>>> m_letters;
 
 enum Model
 {
@@ -229,6 +230,19 @@ vector<Mat> find_words(vector<int> whitePixels, Mat image, int spaceWeight, tupl
 			}
 		}
 	}
+	if (startIndex < image.cols)
+	{
+		for (int i = image.cols - 1; i > startIndex; i--)
+			if (whitePixels[i] != 0)
+			{
+				index = i;
+				break;
+			}
+		Mat x = image.colRange(startIndex, index);
+		lines.push_back(x);
+		wordRects.push_back(Rect(startIndex, get<0>(lineRange), index - startIndex, get<1>(lineRange) -get<0>(lineRange)));
+	}
+
 	m_words.push_back(wordRects);
 	return lines;
 }
@@ -287,9 +301,11 @@ vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
 	for (int i = 0; i < words.size(); i++)
 	{
 		vector<vector<Mat>> lineFeatures;
+		vector<vector<Rect>> lineRects;
 		for (int j = 0; j < words[i].size(); j++)
 		{
 			vector<Mat> wordFeatures;
+			vector<Rect> wordRects;
 			Mat sample = words[i][j];
 			// Find the contours
 			vector<vector<Point>> contours;
@@ -307,22 +323,25 @@ vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
 
 			sort(boundingBox.begin(), boundingBox.end(), compareByX);
 
-			for (int i = 0; i < contours.size(); i++)
+			for (int k = 0; k < contours.size(); k++)
 			{
 				Mat copy;
 				sample.copyTo(copy);
 				// Resize the contours
-				resize(copy.colRange(boundingBox[i].x, boundingBox[i].x + boundingBox[i].width).rowRange(boundingBox[i].y
-					, boundingBox[i].y + boundingBox[i].height), copy, boundingBox[i].size());
-				int size = max(boundingBox[i].size().width, boundingBox[i].size().height);
-				copyMakeBorder(copy, copy, 0, size - boundingBox[i].height, 0, size - boundingBox[i].width, BORDER_ISOLATED);
+				resize(copy.colRange(boundingBox[k].x, boundingBox[k].x + boundingBox[k].width).rowRange(boundingBox[k].y
+					, boundingBox[k].y + boundingBox[k].height), copy, boundingBox[k].size());
+				int size = max(boundingBox[k].size().width, boundingBox[k].size().height);
+				copyMakeBorder(copy, copy, 0, size - boundingBox[k].height, 0, size - boundingBox[k].width, BORDER_ISOLATED);
 				resize(copy, copy, Size(32, 32));
 				wordFeatures.push_back(calculateFeatureVector(copy));
+				wordRects.push_back(Rect(m_words[i][j].x + boundingBox[k].x, m_words[i][j].y + boundingBox[k].y, boundingBox[k].width, boundingBox[k].height));
 			}
 
 			lineFeatures.push_back(wordFeatures);
+			lineRects.push_back(wordRects);
 		}
-		features.push_back(lineFeatures);
+		features.push_back(lineFeatures); 
+		m_letters.push_back(lineRects);
 	}
 
 	return features;
@@ -330,7 +349,16 @@ vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
 
 void interpret_results(Mat image, vector<vector<vector<int>>> results)
 {
-
+	Mat colorImage;
+	cvtColor(image, colorImage, CV_GRAY2BGR);
+	for (int i = 0; i < results.size(); i++)
+		for (int j = 0; j < results[i].size(); j++)
+		{
+			rectangle(colorImage, m_words[i][j], Scalar(100, 125, 25));
+			for (int k = 0; k < results[i][j].size(); k++)
+				putText(colorImage, to_string(results[i][j][k]), Point(m_letters[i][j][k].x, m_letters[i][j][k].y + m_letters[i][j][k].height), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(255, 20, 0), 2);
+		}
+	imshow("Text recognition", colorImage);
 }
 
 int main(int argc, char* argv[])
@@ -379,6 +407,6 @@ int main(int argc, char* argv[])
 	}
 
 	interpret_results(image, results);
-
+	waitKey();
 	return 0;
 }
