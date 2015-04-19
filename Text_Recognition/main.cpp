@@ -59,7 +59,7 @@ vector<vector<vector<int>>> bayes(string fileName, vector<vector<vector<Mat>>> f
 	CvNormalBayesClassifier classifier;
 	classifier.load(fileName.c_str());
 
-	Mat result = Mat(1, 1, CV_32S);
+	Mat result = Mat(1, 1, CV_32FC1);
 
 	vector<vector<vector<int>>> results;
 	for (int i = 0; i < features.size(); i++)
@@ -71,7 +71,7 @@ vector<vector<vector<int>>> bayes(string fileName, vector<vector<vector<Mat>>> f
 			for (int k = 0; k < features[i][j].size(); k++)
 			{
 				classifier.predict(features[i][j][k], &result);
-				wordResults.push_back(result.at<int>(0, 0));
+				wordResults.push_back(result.at<float>(0, 0));
 			}
 			lineResults.push_back(wordResults);
 		}
@@ -151,7 +151,16 @@ vector<Mat> find_lines(vector<int> whitePixels, Mat image)
 	bool found = true;
 	vector<Mat> lines;
 
-	while (found && index < image.rows - 1)
+	int lastWhiteRow = image.rows;
+
+	for (int i = image.rows - 1; i >= 0; i--)
+		if (whitePixels[i] != 0)
+		{
+			lastWhiteRow = i;
+			break;
+		}
+
+	while (found && index < lastWhiteRow)
 	{
 		found = false;
 
@@ -230,17 +239,21 @@ vector<Mat> find_words(vector<int> whitePixels, Mat image, int spaceWeight, tupl
 			}
 		}
 	}
-	if (startIndex < image.cols)
+
+	int lastWhiteCol = image.rows;
+
+	for (int i = image.cols - 1; i >= 0; i--)
+		if (whitePixels[i] != 0)
+		{
+			lastWhiteCol = i;
+			break;
+		}
+
+	if (startIndex < lastWhiteCol)
 	{
-		for (int i = image.cols - 1; i > startIndex; i--)
-			if (whitePixels[i] != 0)
-			{
-				index = i;
-				break;
-			}
-		Mat x = image.colRange(startIndex, index);
+		Mat x = image.colRange(startIndex, lastWhiteCol);
 		lines.push_back(x);
-		wordRects.push_back(Rect(startIndex, get<0>(lineRange), index - startIndex, get<1>(lineRange) -get<0>(lineRange)));
+		wordRects.push_back(Rect(startIndex, get<0>(lineRange), lastWhiteCol - startIndex, get<1>(lineRange) -get<0>(lineRange)));
 	}
 
 	m_words.push_back(wordRects);
@@ -363,9 +376,9 @@ void interpret_results(Mat image, vector<vector<vector<int>>> results)
 
 int main(int argc, char* argv[])
 {
-	string imgName = "..\\digits.png";
+	string imgName;
 	cout << "Choose the image to read\n";
-	//cin >> imgName;
+	cin >> imgName;
 
 	Mat image = imread(imgName, CV_LOAD_IMAGE_GRAYSCALE);
 	Mat thresholdImage;
