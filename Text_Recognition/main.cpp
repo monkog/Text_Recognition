@@ -17,81 +17,105 @@ enum Model
 	, SVM = 4
 };
 
-void mlp(string fileName, vector<vector<Mat>> features)
+vector<vector<vector<int>>> mlp(string fileName, vector<vector<vector<Mat>>> features)
 {
 	CvANN_MLP classifier;
 	classifier.load(fileName.c_str());
 
-	vector<vector<int>> results;
+	vector<vector<vector<int>>> results;
 	for (int i = 0; i < features.size(); i++)
 	{
-		vector<int> lineResults;
+		vector<vector<int>> lineResults;
 		for (int j = 0; j < features[i].size(); j++)
 		{
-			Mat result;
-			classifier.predict(features[i][j], result);
-			float max = 0;
-			int maxIndex = 0;
-			for (int k = 0; k < result.cols; k++)
-				if (result.at<float>(0, k) > max)
-				{
-					max = result.at<float>(0, k);
-					maxIndex = k;
-				}
-			lineResults.push_back(maxIndex);
+			vector<int> wordResults;
+			for (int k = 0; k < features[i][j].size(); k++)
+			{
+				Mat result;
+				classifier.predict(features[i][j][k], result);
+				float max = 0;
+				int maxIndex = 0;
+				for (int l = 0; l < result.cols; l++)
+					if (result.at<float>(0, l) > max)
+					{
+						max = result.at<float>(0, l);
+						maxIndex = l;
+					}
+				wordResults.push_back(maxIndex);
+			}
+			lineResults.push_back(wordResults);
 		}
 		results.push_back(lineResults);
 	}
+	return results;
 }
 
-void bayes(string fileName, vector<vector<Mat>> features)
+vector<vector<vector<int>>> bayes(string fileName, vector<vector<vector<Mat>>> features)
 {
 	CvNormalBayesClassifier classifier;
 	classifier.load(fileName.c_str());
 
 	Mat result = Mat(1, 1, CV_32S);
 
-	vector<vector<int>> results;
+	vector<vector<vector<int>>> results;
 	for (int i = 0; i < features.size(); i++)
 	{
-		vector<int> lineResults;
+		vector<vector<int>> lineResults;
 		for (int j = 0; j < features[i].size(); j++)
 		{
-			classifier.predict(features[i][j], &result);
-			lineResults.push_back(result.at<int>(0, 0));
+			vector<int> wordResults;
+			for (int k = 0; k < features[i][j].size(); k++)
+			{
+				classifier.predict(features[i][j][k], &result);
+				wordResults.push_back(result.at<int>(0, 0));
+			}
+			lineResults.push_back(wordResults);
 		}
 		results.push_back(lineResults);
 	}
+	return results;
 }
 
-void r_trees(string fileName, vector<vector<Mat>> features)
+vector<vector<vector<int>>> r_trees(string fileName, vector<vector<vector<Mat>>> features)
 {
 	CvRTrees  classifier;
 	classifier.load(fileName.c_str());
 
-	vector<vector<int>> results;
+	vector<vector<vector<int>>> results;
 	for (int i = 0; i < features.size(); i++)
 	{
-		vector<int> lineResults;
+		vector<vector<int>> lineResults;
 		for (int j = 0; j < features[i].size(); j++)
-			lineResults.push_back((int)classifier.predict(features[i][j]));
+		{
+			vector<int> wordResults;
+			for (int k = 0; k < features[i][j].size(); k++)
+				wordResults.push_back((int)classifier.predict(features[i][j][k]));
+			lineResults.push_back(wordResults);
+		}
 		results.push_back(lineResults);
 	}
+	return results;
 }
 
-void svm(string fileName, vector<vector<Mat>> features)
+vector<vector<vector<int>>> svm(string fileName, vector<vector<vector<Mat>>> features)
 {
 	CvSVM classifier;
 	classifier.load(fileName.c_str());
 
-	vector<vector<int>> results;
+	vector<vector<vector<int>>> results;
 	for (int i = 0; i < features.size(); i++)
 	{
-		vector<int> lineResults;
+		vector<vector<int>> lineResults;
 		for (int j = 0; j < features[i].size(); j++)
-			lineResults.push_back((int)classifier.predict(features[i][j]));
+		{
+			vector<int> wordResults;
+			for (int k = 0; k < features[i][j].size(); k++)
+				wordResults.push_back((int)classifier.predict(features[i][j][k]));
+			lineResults.push_back(wordResults);
+		}
 		results.push_back(lineResults);
 	}
+	return results;
 }
 
 vector<int> find_white_Pixels(Mat thresholdImage, bool isHorizontal)
@@ -245,14 +269,20 @@ Mat calculateFeatureVector(Mat sample)
 	return features;
 }
 
-vector<vector<Mat>> find_features(vector<vector<Mat>> words)
+bool compareByX(const Rect &a, const Rect &b)
 {
-	vector<vector<Mat>> features;
+	return a.x < b.x;
+}
+
+vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
+{
+	vector<vector<vector<Mat>>> features;
 	for (int i = 0; i < words.size(); i++)
 	{
-		vector<Mat> lineFeatures;
+		vector<vector<Mat>> lineFeatures;
 		for (int j = 0; j < words[i].size(); j++)
 		{
+			vector<Mat> wordFeatures;
 			Mat sample = words[i][j];
 			// Find the contours
 			vector<vector<Point>> contours;
@@ -261,33 +291,29 @@ vector<vector<Mat>> find_features(vector<vector<Mat>> words)
 			// Find the bounding box
 			vector<vector<Point>> contours_poly(contours.size());
 			vector<Rect> boundingBox(contours.size());
-
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// TODO: Sort borders & copy them properly
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			//sort(contours.begin(), contours.end());
-
+			
 			for (int k = 0; k < contours.size(); k++)
 			{
 				approxPolyDP(Mat(contours[k]), contours_poly[k], 3, true);
 				boundingBox[k] = boundingRect(Mat(contours_poly[k]));
 			}
 
-			if (boundingBox.size() > 0)
+			sort(boundingBox.begin(), boundingBox.end(), compareByX);
+
+			for (int i = 0; i < contours.size(); i++)
 			{
+				Mat copy;
+				sample.copyTo(copy);
 				// Resize the contours
-				resize(sample.colRange(boundingBox[0].x, boundingBox[0].x + boundingBox[0].width).rowRange(boundingBox[0].y
-					, boundingBox[0].y + boundingBox[0].height), sample, boundingBox[0].size());
-				int size = max(boundingBox[0].size().width, boundingBox[0].size().height);
-				copyMakeBorder(sample, sample, 0, size - boundingBox[0].height, 0, size - boundingBox[0].width, BORDER_ISOLATED);
+				resize(copy.colRange(boundingBox[i].x, boundingBox[i].x + boundingBox[i].width).rowRange(boundingBox[i].y
+					, boundingBox[i].y + boundingBox[i].height), copy, boundingBox[i].size());
+				int size = max(boundingBox[i].size().width, boundingBox[i].size().height);
+				copyMakeBorder(copy, copy, 0, size - boundingBox[i].height, 0, size - boundingBox[i].width, BORDER_ISOLATED);
+				resize(copy, copy, Size(32, 32));
+				wordFeatures.push_back(calculateFeatureVector(copy));
 			}
 
-			resize(sample, sample, Size(32, 32));
-			lineFeatures.push_back(calculateFeatureVector(sample));
+			lineFeatures.push_back(wordFeatures);
 		}
 		features.push_back(lineFeatures);
 	}
@@ -310,33 +336,37 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < lines.size(); i++)
 		words.push_back(separate_words(find_white_Pixels(lines[i], false), lines[i]));
 
-	vector<vector<Mat>> features = find_features(words);
+	vector<vector<vector<Mat>>> features = find_features(words);
 
 	int model;
 	cout << "Choose statistic model:\n" << "1. MLP\n" << "2. Bayes Classifier\n" << "3. R Trees\n" << "4. SVM\n";
 	cin >> model;
 
 	string fileName;
+	vector<vector<vector<int>>> results;
 	switch (model)
 	{
 	case MLP:
 		fileName = "..\\MLPClassifier.yaml";
+		results = mlp(fileName, features);
 		break;
 	case Bayes_Classifier:
 		fileName = "..\\NormalBayesClassifier.yaml";
-		bayes(fileName, features);
+		results = bayes(fileName, features);
 		break;
 	case R_Trees:
 		fileName = "..\\RTreesClassifier.yaml";
-		r_trees(fileName, features);
+		results = r_trees(fileName, features);
 		break;
 	case Model::SVM:
 		fileName = "..\\SVMClassifier.yaml";
-		svm(fileName, features);
+		results = svm(fileName, features);
 		break;
 	default:
 		break;
 	}
+
+	interpret_results(image, results);
 
 	return 0;
 }
