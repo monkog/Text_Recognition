@@ -9,6 +9,9 @@ using namespace std;
 
 #define FEATURES_VECTOR_SIZE 16
 
+vector<vector<Rect>> m_words;
+vector<tuple<int, int>> m_lines;
+
 enum Model
 {
 	MLP = 1
@@ -170,15 +173,17 @@ vector<Mat> find_lines(vector<int> whitePixels, Mat image)
 			index = image.rows - 1;
 
 		lines.push_back(image.rowRange(startIndex, index));
+		m_lines.push_back(tuple<int, int>(startIndex, index));
 	}
 	return lines;
 }
 
-vector<Mat> find_words(vector<int> whitePixels, Mat image, int spaceWeight)
+vector<Mat> find_words(vector<int> whitePixels, Mat image, int spaceWeight, tuple<int, int> lineRange)
 {
 	int startIndex = 0, index = 0, whiteSpaceCounter = 0;
 	bool found = true, foundWord = true;
 	vector<Mat> lines;
+	vector<Rect> wordRects;
 	int i = 0;
 
 	// Find the begginning of the first word
@@ -219,14 +224,16 @@ vector<Mat> find_words(vector<int> whitePixels, Mat image, int spaceWeight)
 			{
 				Mat x = image.colRange(startIndex, index);
 				lines.push_back(x);
+				wordRects.push_back(Rect(startIndex, get<0>(lineRange), index - startIndex, get<1>(lineRange) -get<0>(lineRange)));
 				foundWord = true;
 			}
 		}
 	}
+	m_words.push_back(wordRects);
 	return lines;
 }
 
-vector<Mat> separate_words(vector<int> whiteSpaces, Mat line)
+vector<Mat> separate_words(vector<int> whiteSpaces, Mat line, tuple<int, int> lineRange)
 {
 	vector<Mat> words;
 	int singleSpace = 0;
@@ -247,7 +254,7 @@ vector<Mat> separate_words(vector<int> whiteSpaces, Mat line)
 
 	int spaceWeight = spaceSum / spaceCount;
 
-	return find_words(whiteSpaces, line, spaceWeight);
+	return find_words(whiteSpaces, line, spaceWeight, lineRange);
 }
 // Calculate the number of white pixels in the matrix
 Mat calculateFeatureVector(Mat sample)
@@ -291,7 +298,7 @@ vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
 			// Find the bounding box
 			vector<vector<Point>> contours_poly(contours.size());
 			vector<Rect> boundingBox(contours.size());
-			
+
 			for (int k = 0; k < contours.size(); k++)
 			{
 				approxPolyDP(Mat(contours[k]), contours_poly[k], 3, true);
@@ -321,6 +328,11 @@ vector<vector<vector<Mat>>> find_features(vector<vector<Mat>> words)
 	return features;
 }
 
+void interpret_results(Mat image, vector<vector<vector<int>>> results)
+{
+
+}
+
 int main(int argc, char* argv[])
 {
 	string imgName = "..\\digits.png";
@@ -334,7 +346,7 @@ int main(int argc, char* argv[])
 	vector<vector<Mat>> words;
 
 	for (int i = 0; i < lines.size(); i++)
-		words.push_back(separate_words(find_white_Pixels(lines[i], false), lines[i]));
+		words.push_back(separate_words(find_white_Pixels(lines[i], false), lines[i], m_lines[i]));
 
 	vector<vector<vector<Mat>>> features = find_features(words);
 
