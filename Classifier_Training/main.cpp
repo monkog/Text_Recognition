@@ -96,19 +96,21 @@ void bayes(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples,
 void r_trees(Mat features, Mat labels, Mat testSet, Mat results, int numOfSamples, int rows)
 {
 	CvRTrees  classifier;
-	CvRTParams  params(4, // max_depth,
-		2, // min_sample_count,
+	CvRTParams  params(15, // max_depth,
+		45, // min_sample_count,
 		0.f, // regression_accuracy,
 		false, // use_surrogates,
 		rows, // max_categories,
-		0, // priors,
+		NULL, // priors,
 		false, // calc_var_importance,
-		1, // nactive_vars,
-		5, // max_num_of_trees_in_the_forest,
+		0, // nactive_vars,
+		0, // max_num_of_trees_in_the_forest,
 		0, // forest_accuracy,
-		CV_TERMCRIT_ITER // termcrit_type
+		CV_TERMCRIT_ITER | CV_TERMCRIT_EPS // termcrit_type
 		);
 
+	params.term_crit.max_iter = 250;
+	params.term_crit.epsilon = 0.000001;
 	classifier.train(features, CV_ROW_SAMPLE, labels, Mat(), Mat(), Mat(), Mat(), params);
 
 	int wrongAnswers = 0;
